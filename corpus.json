@@ -1,0 +1,34 @@
+[
+  {
+    "id": "fastapi-errors-note-v1",
+    "title": "FastAPI documentation study note: HTTPException",
+    "source_url": "https://fastapi.tiangolo.com/tutorial/handling-errors/",
+    "kind": "authored_summary",
+    "revision": "study-note-v1-2026-10-23",
+    "text": "In FastAPI, import HTTPException from fastapi. Raise HTTPException to stop processing a request and return an HTTP error response. An HTTPException can specify a status_code and a detail value. The detail value may contain JSON-serializable data. Raising an exception differs from returning it."
+  },
+  {
+    "id": "fastapi-status-note-v1",
+    "title": "FastAPI documentation study note: response status codes",
+    "source_url": "https://fastapi.tiangolo.com/tutorial/response-status-code/",
+    "kind": "authored_summary",
+    "revision": "study-note-v1-2026-10-23",
+    "text": "FastAPI path operation decorators accept the status_code parameter to declare the response HTTP status code. A 201 status code denotes a created resource. A 204 status code denotes no content and must not have a response body. These are framework documentation notes, not configuration facts about the demo service."
+  },
+  {
+    "id": "demo-timeout-v1",
+    "title": "Fictional EvidenceOps demo service: request timeout",
+    "source_url": "local:demo-timeout-v1",
+    "kind": "fictional_test_fixture",
+    "revision": "fixture-v1",
+    "text": "This is a fictional test fixture for a service that has not yet been implemented. In the demo-v1 specification, the request timeout is 30 seconds. The timeout is a project-specific setting, not a FastAPI default. The fixture does not establish any current live service state."
+  },
+  {
+    "id": "demo-diagnostics-v1",
+    "title": "Fictional EvidenceOps demo service: diagnostic policy",
+    "source_url": "local:demo-diagnostics-v1",
+    "kind": "fictional_test_fixture",
+    "revision": "fixture-v1",
+    "text": "This is a fictional policy fixture. The planned demo service allows operator-role users to request read-only health diagnostics. Reader-role users cannot execute diagnostic tools. Shell commands, restarts and configuration changes are not permitted. No diagnostic tools are implemented in this starter, so documentation cannot establish whether the service is healthy right now."
+  }
+]
