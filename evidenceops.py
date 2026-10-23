@@ -6,6 +6,7 @@ import re
 import sqlite3
 import time
 import uuid
+from contextlib import closing
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -14,13 +15,27 @@ ROOT = Path(__file__).resolve().parent
 STOP = set('a an the is are was were what which how do does can i you my to of in on for and or please tell me about'.split())
 
 
-def load_corpus(path=ROOT / 'corpus.json'):
-    documents = json.loads(path.read_text(encoding='utf-8'))
+def load_corpus(path=None):
+    if path is None and (ROOT / 'corpus' / 'manifest.json').exists():
+        manifest = json.loads((ROOT / 'corpus' / 'manifest.json').read_text(encoding='utf-8'))
+        saved = json.loads((ROOT / 'indexes' / 'corpus.json').read_text(encoding='utf-8'))
+        manifest_payload = {k: v for k, v in manifest.items() if k != 'snapshot_sha256'}
+        manifest_hash = hashlib.sha256(json.dumps(manifest_payload, sort_keys=True).encode()).hexdigest()
+        if manifest_hash != manifest['snapshot_sha256'] or saved['snapshot_sha256'] != manifest_hash:
+            raise ValueError('Corpus/index snapshot mismatch; rebuild the index')
+        documents = saved['chunks']
+        if hashlib.sha256(json.dumps(documents, sort_keys=True).encode()).hexdigest() != saved['chunks_sha256']:
+            raise ValueError('Corpus index hash mismatch')
+    else:
+        documents = json.loads((path or ROOT / 'corpus.json').read_text(encoding='utf-8'))
     ids = [d['id'] for d in documents]
     if len(ids) != len(set(ids)):
         raise ValueError('Duplicate document IDs')
     for doc in documents:
-        doc['sha256'] = hashlib.sha256(doc['text'].encode()).hexdigest()
+        expected = hashlib.sha256(doc['text'].encode()).hexdigest()
+        if doc.get('sha256', expected) != expected:
+            raise ValueError('Passage hash mismatch')
+        doc['sha256'] = expected
     return documents
 
 
@@ -29,7 +44,7 @@ def retrieve(question, documents, limit=3):
     terms = sorted(set(re.findall(r'[a-zA-Z0-9_]+', question.lower())) - STOP)
     if not terms:
         return []
-    with sqlite3.connect(':memory:') as db:
+    with closing(sqlite3.connect(':memory:')) as db:
         db.execute('CREATE VIRTUAL TABLE passages USING fts5(id UNINDEXED, title, text)')
         db.executemany('INSERT INTO passages VALUES (?, ?, ?)',
                        [(d['id'], d['title'], d['text']) for d in documents])
@@ -131,7 +146,9 @@ def answer_question(question, documents=None, model=chat):
     try:
         if not isinstance(question, str) or not question.strip() or len(question) > 2000:
             raise ValueError('Question must contain 1–2000 characters')
-        evidence = retrieve(question, documents if documents is not None else load_corpus())
+        corpus = documents if documents is not None else load_corpus()
+        result['corpus_sha256'] = hashlib.sha256(json.dumps(corpus, sort_keys=True).encode()).hexdigest()
+        evidence = retrieve(question, corpus)
         result['evidence'] = evidence
         if not evidence:
             result.update(status='abstained', reason_code='no_matching_evidence')
@@ -142,11 +159,26 @@ def answer_question(question, documents=None, model=chat):
                       'Otherwise return answered with the SHORTEST complete answer, usually ONE atomic claim. '
                       'Include only facts directly requested; do not fill the four-claim limit or add background facts. Each claim must have '
                       'one evidence_id and an EXACT verbatim quote supporting the entire claim. '
-                      'The demo service is fictional. Do not infer current live state from documentation.')
-            draft = model([{'role': 'system', 'content': system},
-                           {'role': 'user', 'content': json.dumps({'question': question, 'evidence': evidence})}], ANSWER_SCHEMA)
+                      'Official FastAPI passages answer framework questions. Only passages labelled fictional '
+                      'describe the demo service. Do not infer current live state from documentation. '
+                      'Quotes must preserve Markdown punctuation and backticks exactly.')
+            prompt_evidence = [{k: e[k] for k in ('id', 'title', 'kind', 'text')} for e in evidence]
+            messages = [{'role': 'system', 'content': system},
+                        {'role': 'user', 'content': json.dumps({'question': question, 'evidence': prompt_evidence})}]
+            draft = model(messages, ANSWER_SCHEMA)
             result['draft'] = draft
-            claims = validate_answer(draft, evidence)
+            try:
+                claims = validate_answer(draft, evidence)
+            except ValueError as error:
+                result['invalid_draft'] = draft
+                result['repair_count'] = 1
+                messages += [{'role': 'assistant', 'content': json.dumps(draft)},
+                             {'role': 'user', 'content': 'Repair the response structure or citations: ' + str(error) +
+                              '. Copy quotes character-for-character from the evidence, including Markdown. '
+                              'Use only supplied evidence IDs. If unable, abstain with empty claims.'}]
+                draft = model(messages, ANSWER_SCHEMA)
+                result['draft'] = draft
+                claims = validate_answer(draft, evidence)
             if draft['status'] == 'abstained':
                 result.update(status='abstained', reason_code='insufficient_evidence')
             else:
@@ -158,7 +190,7 @@ def answer_question(question, documents=None, model=chat):
                      'Claims about a fictional specification are judged within that specification, not as real-world observations. '
                      'Use supported, contradicted or insufficient. Do not use outside knowledge. '
                      'A real quote is insufficient if irrelevant. Return one verdict for EVERY claim.'},
-                    {'role': 'user', 'content': json.dumps({'claims': claims, 'evidence': [e for e in evidence if e['id'] in cited]})}
+                    {'role': 'user', 'content': json.dumps({'claims': claims, 'evidence': [e for e in prompt_evidence if e['id'] in cited]})}
                 ], SUPPORT_SCHEMA)
                 result['verification'] = verdict
                 if supported(verdict, len(claims)):

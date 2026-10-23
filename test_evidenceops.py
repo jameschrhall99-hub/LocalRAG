@@ -7,7 +7,7 @@ import evidenceops as app
 
 class RagTests(unittest.TestCase):
     def setUp(self):
-        self.docs = app.load_corpus()
+        self.docs = app.load_corpus(app.ROOT / 'corpus.json')
         self.doc = next(d for d in self.docs if d['id'] == 'demo-timeout-v1')
         self.draft = {'status': 'answered', 'claims': [{'text': 'The demo-v1 timeout is 30 seconds.',
             'evidence_id': self.doc['id'], 'quote': 'the request timeout is 30 seconds.'}]}
@@ -73,6 +73,22 @@ class RagTests(unittest.TestCase):
 
     def test_generation_timeout_is_error(self):
         self.assertEqual(app.answer_question('request timeout', self.docs, Mock(side_effect=TimeoutError()))['status'], 'error')
+
+    def test_one_citation_repair(self):
+        invalid = {'status': 'answered', 'claims': [{'text': 'Timeout is 30 seconds.',
+                   'evidence_id': self.doc['id'], 'quote': 'invented quote'}]}
+        model = Mock(side_effect=[invalid, self.draft, {'verdicts': [{'claim_index': 0, 'label': 'supported'}]}])
+        result = app.answer_question('request timeout', self.docs, model)
+        self.assertEqual(result['status'], 'answered')
+        self.assertEqual(result['repair_count'], 1)
+        self.assertEqual(result['invalid_draft'], invalid)
+
+    def test_repair_is_bounded(self):
+        invalid = {'status': 'answered', 'claims': []}
+        model = Mock(side_effect=[invalid, invalid])
+        result = app.answer_question('request timeout', self.docs, model)
+        self.assertEqual(result['status'], 'error')
+        self.assertEqual(model.call_count, 2)
 
     def test_records_saved(self):
         result = app.answer_question('zyxwvunobibliography', self.docs)

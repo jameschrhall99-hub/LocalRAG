@@ -1,5 +1,7 @@
 # EvidenceOps: first working slice
 
+**Documentation ingestion added:** see [INGESTION.md](INGESTION.md) for the new 20-page pinned FastAPI snapshot and commands. After ingestion, the assistant automatically uses the generated index. The four-passage description below records the original starter baseline; those original fixtures are still used by the deterministic tests.
+
 This is a small lexical RAG baseline for the project in Plan.md. Python 3.12+; no third-party Python packages. The current Python 3.14 environment can run it. Keep the existing llama.cpp Qwen3-4B server running on 127.0.0.1:8080 with thinking disabled per request.
 
 From the LLM_Project folder, run these as individual single-line PowerShell commands (activation is unnecessary):
