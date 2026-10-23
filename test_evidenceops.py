@@ -77,11 +77,37 @@ class RagTests(unittest.TestCase):
     def test_one_citation_repair(self):
         invalid = {'status': 'answered', 'claims': [{'text': 'Timeout is 30 seconds.',
                    'evidence_id': self.doc['id'], 'quote': 'invented quote'}]}
-        model = Mock(side_effect=[invalid, self.draft, {'verdicts': [{'claim_index': 0, 'label': 'supported'}]}])
+        selected = next(c for c in app.quote_candidates(app.retrieve('request timeout', self.docs)) if c['evidence_id'] == self.doc['id'])
+        repaired = {'status': 'answered', 'claims': [{'text': self.draft['claims'][0]['text'], 'quote_id': selected['quote_id']}]}
+        model = Mock(side_effect=[invalid, repaired, {'verdicts': [{'claim_index': 0, 'label': 'supported'}]}])
         result = app.answer_question('request timeout', self.docs, model)
         self.assertEqual(result['status'], 'answered')
         self.assertEqual(result['repair_count'], 1)
         self.assertEqual(result['invalid_draft'], invalid)
+
+    def test_repair_quotes_are_copied_by_host(self):
+        candidates = app.quote_candidates([self.doc])
+        repaired = app.resolve_repair({'status': 'answered', 'claims': [{'text': 'Timeout is 30 seconds.',
+            'quote_id': candidates[0]['quote_id']}]}, candidates)
+        self.assertEqual(repaired['claims'][0]['quote'], candidates[0]['quote'])
+        self.assertEqual(repaired['claims'][0]['evidence_id'], self.doc['id'])
+        app.validate_answer(repaired, [self.doc])
+
+    def test_repair_rejects_invented_quote_id(self):
+        with self.assertRaises(ValueError):
+            app.resolve_repair({'status': 'answered', 'claims': [{'text': 'Invented', 'quote_id': 'Q999'}]}, app.quote_candidates([self.doc]))
+
+    def test_repair_cannot_override_quote_text(self):
+        with self.assertRaises(ValueError):
+            app.resolve_repair({'status': 'answered', 'claims': [{'text': 'Invented', 'quote_id': 'Q0', 'quote': 'wrong'}]}, app.quote_candidates([self.doc]))
+
+    def test_repair_still_checks_semantic_support(self):
+        invalid = {'status': 'answered', 'claims': []}
+        repaired = {'status': 'answered', 'claims': [{'text': 'Unrelated claim.', 'quote_id': 'Q0'}]}
+        model = Mock(side_effect=[invalid, repaired, {'verdicts': [{'claim_index': 0, 'label': 'insufficient'}]}])
+        result = app.answer_question('request timeout', self.docs, model)
+        self.assertEqual(result['status'], 'abstained')
+        self.assertEqual(result['reason_code'], 'support_not_established')
 
     def test_repair_is_bounded(self):
         invalid = {'status': 'answered', 'claims': []}

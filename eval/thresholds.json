@@ -1,0 +1,10 @@
+{
+  "cases": {"min": 20},
+  "pipeline_errors": {"max": 0},
+  "evidence_group_recall_at_3": {"min": 0.8},
+  "required_pattern_check_rate": {"min": 0.8},
+  "citation_integrity_rate": {"min": 1.0},
+  "status_accuracy": {"min": 0.9},
+  "unanswerable_abstention_recall": {"min": 0.9},
+  "false_abstention_rate": {"max": 0.1}
+}

@@ -1,5 +1,11 @@
 # EvidenceOps: first working slice
 
+**Judge review workflow added:** see [CALIBRATION.md](CALIBRATION.md). Start interactive human review with `.\.venv\Scripts\python.exe calibrate.py review --split calibration --reviewer spark`. All 80 proposed example labels start pending; the initial calibration diagnostic is not certification, and validation has not been run.
+
+**First measured improvement:** see [CITATION_REPAIR.md](CITATION_REPAIR.md). Selecting exact excerpts during citation repair removed both false refusals in the fixed 20-case development run. [JUDGE_REVIEW.md](JUDGE_REVIEW.md) documents remaining judge disagreements; semantic scores remain uncalibrated.
+
+**Development evaluation added:** see [EVALUATION.md](EVALUATION.md) for the 20-question dataset, saved reports, optional local judging and required metric gates. Start with `.\.venv\Scripts\python.exe evaluate.py run --judge` while your model server is running.
+
 **Documentation ingestion added:** see [INGESTION.md](INGESTION.md) for the new 20-page pinned FastAPI snapshot and commands. After ingestion, the assistant automatically uses the generated index. The four-passage description below records the original starter baseline; those original fixtures are still used by the deterministic tests.
 
 This is a small lexical RAG baseline for the project in Plan.md. Python 3.12+; no third-party Python packages. The current Python 3.14 environment can run it. Keep the existing llama.cpp Qwen3-4B server running on 127.0.0.1:8080 with thinking disabled per request.

@@ -1,0 +1,7 @@
+{
+  "minimums": {
+    "macro_f1": 0.8,
+    "bad_case_detection_recall": 0.85,
+    "good_case_acceptance_recall": 0.85
+  }
+}
